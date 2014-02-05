@@ -36,6 +36,8 @@ import org.jboss.seam.render.template.CompiledTemplateResource;
 import org.kie.api.KieBase;
 import org.kie.api.cdi.KBase;
 import org.kie.api.cdi.KSession;
+import org.kie.api.runtime.KieSession;
+import org.kie.api.runtime.StatelessKieSession;
 
 /**
  *
@@ -221,8 +223,8 @@ public class KiePlugin implements Plugin {
         shell.execute("pick-up " + kmoduleResource.getFullyQualifiedName());
 	}
 
-	@Command("generate-api")
-	public void generateAPI(@PipeIn String in, PipeOut out,
+	@Command("generate-cdi")
+	public void generateCDI(@PipeIn String in, PipeOut out,
                             @Option(name = "package",
                                     required = true,
                                     type= PromptType.JAVA_PACKAGE)
@@ -257,11 +259,20 @@ public class KiePlugin implements Plugin {
                 .setName(name)
                 .setPublic()
                 .addInterface(Serializable.class);
+        javaClass.addImport(Inject.class);
         javaClass.addImport(KBase.class);
         javaClass.addImport(KSession.class);
         javaClass.addImport(KieBase.class);
+        javaClass.addImport(KieSession.class);
+        javaClass.addImport(StatelessKieSession.class);
 
-        addKieBases(javaClass, out);
+        StringBuffer sb = new StringBuffer();
+        addKieBases(javaClass, out, sb);
+
+//        javaClass.addMethod()
+//                .setName("fireRules")
+//                .setReturnType(boolean.class)
+//                .setBody("");
 
         JavaResource javaFileLocation = java.saveJavaSource(javaClass);
 
@@ -273,7 +284,7 @@ public class KiePlugin implements Plugin {
         shell.execute("pick-up " + javaFileLocation.getFullyQualifiedName());
 	}
 
-    private void addKieBases(JavaClass javaClass, PipeOut out) {
+    private void addKieBases(JavaClass javaClass, PipeOut out, StringBuffer sb) {
 
         ResourceFacet resourceFacet = project.getFacet(ResourceFacet.class);
         FileResource kmoduleResource = resourceFacet.getResource("META-INF/kmodule.xml");
@@ -285,19 +296,37 @@ public class KiePlugin implements Plugin {
 
         Node root = XMLParser.parse(kmoduleResource.getResourceInputStream());
         List<Node> kbaseNodes = root.get("kbase");
-        int ctr=1;
+        int kbaseCtr=1;
+        int ksessionCtr=1;
         for (Node kbase : kbaseNodes){
             String kbaseName = kbase.getAttribute("name");
-            String normalizedKbaseName = "kbase"+(ctr++);
+            String normalizedKbaseName = "kbase"+(kbaseCtr++);
             //String normalizedKbaseName = Character.toUpperCase(kbaseName.charAt(0))+kbaseName.substring(1);
             Field<JavaClass> id = javaClass.addField("private KieBase "+(normalizedKbaseName)+";");
+            id.addAnnotation(Inject.class);
             id.addAnnotation(KBase.class).setStringValue("value", kbaseName);
             Refactory.createGetterAndSetter(javaClass, id);
+
+            List<Node> ksessionNodes = kbase.get("ksession");
+            for (Node ksession : ksessionNodes){
+                String ksessionName = ksession.getAttribute("name");
+                String normalizedKsessionName = "ksession"+(ksessionCtr++);
+                String type = ksession.getAttribute("type");
+                Field<JavaClass> ks = null;
+                if ("stateless".equalsIgnoreCase(type)) {
+                    ks = javaClass.addField("private StatelessKieSession "+(normalizedKsessionName)+";");
+                }  else {
+                    ks = javaClass.addField("private KieSession "+(normalizedKsessionName)+";");
+                }
+                ks.addAnnotation(Inject.class);
+                ks.addAnnotation(KSession.class).setStringValue("value", ksessionName);
+                Refactory.createGetterAndSetter(javaClass, ks);
+            }
         }
     }
 
-    @Command("generate-cdi")
-    public void generateCDI(@PipeIn String in, PipeOut out) {
+    @Command("generate-api")
+    public void generateAPI(@PipeIn String in, PipeOut out) {
 
     }
 
