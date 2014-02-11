@@ -12,7 +12,12 @@ Type in the following commands into the forge console.
 
         $ forge git-plugin https://github.com/vinodkiran/kie-forge-plugin
 
-* Start by setting up 'kie'
+* Start by creating a new project
+
+        $ kie new-project....
+
+
+* Set up 'kie'
 
         $ kie setup
         $ kie kmodule
